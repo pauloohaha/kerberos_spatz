@@ -314,8 +314,8 @@ module ${cfg['name']}_wrapper
   localparam int unsigned NumSpatzFPUs             [NumCores] = '{default: ${cfg['n_fpu']}};
   localparam int unsigned NumSpatzIPUs             [NumCores] = '{default: ${cfg['n_ipu']}};
 
-  spatz_cluster_pkg::spatz_axi_iwc_out_req_t axi_from_cluster_iwc_req;
-  spatz_cluster_pkg::spatz_axi_iwc_out_resp_t axi_from_cluster_iwc_resp;
+  ${cfg['pkg_name']}::spatz_axi_iwc_out_req_t axi_from_cluster_iwc_req;
+  ${cfg['pkg_name']}::spatz_axi_iwc_out_resp_t axi_from_cluster_iwc_resp;
 
 % if cfg['axi_isolate_enable'] or cfg['axi_cdc_enable']:
   axi_out_req_t  axi_from_cluster_req;
@@ -461,7 +461,7 @@ module ${cfg['name']}_wrapper
 % endif
 
   axi_iw_converter #(
-    .AxiSlvPortIdWidth ( spatz_cluster_pkg::IwcAxiIdOutWidth ),
+    .AxiSlvPortIdWidth ( ${cfg['pkg_name']}::IwcAxiIdOutWidth ),
     .AxiMstPortIdWidth ( AxiOutIdWidth ),
     .AxiSlvPortMaxUniqIds ( 2 ),
     .AxiSlvPortMaxTxnsPerId (2),
@@ -471,8 +471,8 @@ module ${cfg['name']}_wrapper
     .AxiAddrWidth ( AxiAddrWidth ),
     .AxiDataWidth ( AxiDataWidth ),
     .AxiUserWidth ( AxiUserWidth ),
-    .slv_req_t  (spatz_cluster_pkg::spatz_axi_iwc_out_req_t),
-    .slv_resp_t (spatz_cluster_pkg::spatz_axi_iwc_out_resp_t),
+    .slv_req_t  (${cfg['pkg_name']}::spatz_axi_iwc_out_req_t),
+    .slv_resp_t (${cfg['pkg_name']}::spatz_axi_iwc_out_resp_t),
     .mst_req_t  ( axi_out_req_t),
     .mst_resp_t ( axi_out_resp_t)
   ) iw_converter(
@@ -494,7 +494,7 @@ module ${cfg['name']}_wrapper
     .AxiAddrWidth (AxiAddrWidth),
     .AxiDataWidth (AxiDataWidth),
     .AxiIdWidthIn (AxiInIdWidth),
-    .AxiIdWidthOut (spatz_cluster_pkg::IwcAxiIdOutWidth),
+    .AxiIdWidthOut (${cfg['pkg_name']}::IwcAxiIdOutWidth),
     .AxiUserWidth (AxiUserWidth),
     .BootAddr (${to_sv_hex(cfg['boot_addr'], 32)}),
     .ClusterPeriphSize (${cfg['cluster_periph_size']}),
@@ -513,8 +513,8 @@ module ${cfg['name']}_wrapper
     .NumSpatzIPUs (NumSpatzIPUs),
     .axi_in_req_t (axi_in_req_t),
     .axi_in_resp_t (axi_in_resp_t),
-    .axi_out_req_t (spatz_cluster_pkg::spatz_axi_iwc_out_req_t),
-    .axi_out_resp_t (spatz_cluster_pkg::spatz_axi_iwc_out_resp_t),
+    .axi_out_req_t (${cfg['pkg_name']}::spatz_axi_iwc_out_req_t),
+    .axi_out_resp_t (${cfg['pkg_name']}::spatz_axi_iwc_out_resp_t),
     .Xdma (${core_cfg_flat('xdma')}),
     .DMAAxiReqFifoDepth (${cfg['dma_axi_req_fifo_depth']}),
     .DMAReqFifoDepth (${cfg['dma_req_fifo_depth']}),
