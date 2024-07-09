@@ -178,7 +178,7 @@ sources:
   # Level 2
   - hw/system/spatz_cluster/src/spatz_cluster_peripheral/spatz_cluster_peripheral.sv
   # Level 3
-  - hw/system/spatz_cluster/src/spatz_cluster.sv
+  - hw/system/spatz_cluster/src/generated/spatz_cluster.sv
   # Level 4
   - hw/system/spatz_cluster/src/generated/spatz_cluster_wrapper.sv
 

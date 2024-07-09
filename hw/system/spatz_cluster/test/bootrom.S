@@ -53,12 +53,22 @@ _start:
   // Wait for the wakeup interrupt
   wfi
 
+  // Read cluster idx
+  csrr    t3, mhartid
+
+  // Cluster offset 0x0600_0000
+  lui     t2, 24576
+  mul     t4, t2, t3
+
   // Load the start address of the TCDM
   lw      t2, 24(a1)
   // Load the size of the TCDM
   lw      t3, 32(a1)
   // Final address of the TCDM
   add     t2, t2, t3
+
+  //add cluster offset
+  add     t2, t2, t4
 
   // Find the entry point address
   addi    t2, t2, SPATZ_CLUSTER_PERIPHERAL_CLUSTER_BOOT_CONTROL_REG_OFFSET

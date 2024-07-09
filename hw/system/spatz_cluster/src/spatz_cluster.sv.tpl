@@ -4,6 +4,8 @@
 
 // Author: Matheus Cavalcante <matheusd@iis.ee.ethz.ch>
 
+${disclaimer}
+
 `include "axi/assign.svh"
 `include "axi/typedef.svh"
 `include "common_cells/assertions.svh"
@@ -20,7 +22,7 @@
 
 /// Spatz many-core cluster with improved TCDM interconnect.
 /// Spatz Cluster Top-Level.
-module spatz_cluster
+module ${cfg['name']}
   import spatz_pkg::*;
   import fpnew_pkg::fpu_implementation_t;
   import snitch_pma_pkg::snitch_pma_t;

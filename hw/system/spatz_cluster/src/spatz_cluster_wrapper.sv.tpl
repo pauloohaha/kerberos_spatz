@@ -88,10 +88,10 @@ package ${cfg['pkg_name']};
   localparam int unsigned ICacheLineCount = ${cfg['icache']['depth']};
   localparam int unsigned ICacheSets = ${cfg['icache']['sets']};
 
-  localparam int unsigned TCDMStartAddr = ${to_sv_hex(cfg['cluster_base_addr'], cfg['addr_width'])};
-  localparam int unsigned TCDMSize      = ${to_sv_hex(cfg['tcdm']['size'] * 1024, cfg['addr_width'])};
+  localparam int unsigned ${cfg['name']}_TCDMStartAddr = ${to_sv_hex(cfg['cluster_base_addr'], cfg['addr_width'])};
+  localparam int unsigned ${cfg['name']}_TCDMSize      = ${to_sv_hex(cfg['tcdm']['size'] * 1024, cfg['addr_width'])};
 
-  localparam int unsigned PeriStartAddr = TCDMStartAddr + TCDMSize;
+  localparam int unsigned ${cfg['name']}_PeriStartAddr = ${cfg['name']}_TCDMStartAddr + ${cfg['name']}_TCDMSize;
 
   localparam int unsigned BootAddr      = ${to_sv_hex(cfg['boot_addr'], cfg['addr_width'])};
 
@@ -490,7 +490,7 @@ module ${cfg['name']}_wrapper
    );
 
   // Spatz cluster under test.
-  spatz_cluster #(
+  ${cfg['name']} #(
     .AxiAddrWidth (AxiAddrWidth),
     .AxiDataWidth (AxiDataWidth),
     .AxiIdWidthIn (AxiInIdWidth),
