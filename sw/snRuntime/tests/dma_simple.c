@@ -12,7 +12,7 @@ int main() {
 
     printf("DMA test start\n");
 
-    if (snrt_global_core_idx() != 8) return 0;  // only DMA core
+    if (snrt_global_core_idx() != 1) return 0;  // only DMA core, DMA cluster core idx 1
     uint32_t errors = 0;
 
     // Populate buffers.
