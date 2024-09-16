@@ -1050,7 +1050,7 @@ module ${cfg['name']}
     .reg_rsp_i  (bootrom_reg_rsp          )
   );
 
-  bootrom i_bootrom (
+  ${cfg['name']}_bootrom i_bootrom (
     .clk_i  (clk_i                        ),
     .req_i  (bootrom_reg_req.valid        ),
     .addr_i (addr_t'(bootrom_reg_req.addr)),

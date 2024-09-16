@@ -68,22 +68,27 @@ snrt.crt0.init_core_info:
 
     # Calculate cluster idx
     csrr a0, mhartid
-    li   t0, @SNRT_BASE_HARTID@
+    #li  t0, @SNRT_BASE_HARTID@
+    lw   t0, 16(a4) #load base hartid from bootdata
     sub  a0, a0, t0
-    li   a1, @SNRT_CLUSTER_CORE_NUM@
+    #li  a1, @SNRT_CLUSTER_CORE_NUM@
+    lw   a1, 8(a4) #load core cnt from bootdata
     div  t0, a0, a1
 
     # Calculate cluster-local core ID
     remu a0, a0, a1
 
     # Calculate cluster's TCDM start address
-    li   a2, @SNRT_TCDM_START_ADDR@
-    li   t1, @SNRT_CLUSTER_OFFSET@
+    #li  a2, @SNRT_TCDM_START_ADDR@
+    lw   a2, 24(a4)
+    #li  t1, @SNRT_CLUSTER_OFFSET@
+    lw   t1, 40(a4)
     mul  t0, t1, t0
     add  a2, a2, t0
 
     # Calculate cluster's TCDM end address
-    li   t0, @SNRT_TCDM_SIZE@
+    #li  t0, @SNRT_TCDM_SIZE@
+    lw   t0, 32(a4)
     add  a3, a2, t0
 
     # Set space aside for the root team structure.
