@@ -57,6 +57,11 @@ int test_case;
     asm volatile("csrr %[BUF], vl" : [BUF] "=r"(buf));                         \
   } while (0);
 
+#define set_fmode(val)                                                         \
+  do {                                                                         \
+    asm volatile("csrwi 0x800, %[VAL]" :: [VAL] "i"(val));                     \
+  } while (0);
+
 #define vtype(golden_vtype, vlmul, vsew, vta, vma)                             \
   (golden_vtype = vlmul << 0 | vsew << 3 | vta << 6 | vma << 7)
 

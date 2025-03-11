@@ -929,10 +929,9 @@ module spatz_vfu
         EW_8: begin
           for (int el = 0; el < (MAXEW == EW_64 ? 4*N_FPU : 2*N_FPU); el++) begin
             if (spatz_req.op_arith.widen_vs1)
-              wide_operand1[16*el +: 16] = widen_fp8_to_fp16(shift_operand1[8*el +: 8]);
-
+              wide_operand1[16*el +: 16] = spatz_req.fm.src ? widen_fp8_to_fp16_alt(shift_operand1[8*el +: 8]) : widen_fp8_to_fp16(shift_operand1[8*el +: 8]);
             if (spatz_req.op_arith.widen_vs2)
-              wide_operand2[16*el +: 16] = widen_fp8_to_fp16(shift_operand2[8*el +: 8]);
+              wide_operand2[16*el +: 16] = spatz_req.fm.src ? widen_fp8_to_fp16_alt(shift_operand2[8*el +: 8]) : widen_fp8_to_fp16(shift_operand2[8*el +: 8]);
           end
         end
         default:;

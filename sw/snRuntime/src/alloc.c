@@ -8,7 +8,7 @@
 #define ALIGN_UP(addr, size) (((addr) + (size)-1) & ~((size)-1))
 #define ALIGN_DOWN(addr, size) ((addr) & ~((size)-1))
 
-#define MIN_CHUNK_SIZE 8
+#define MIN_CHUNK_SIZE 256 //MARIUS: was 8 before, but should be aligned with SRAM.
 
 /**
  * @brief Allocate a chunk of memory in the L1 memory
@@ -20,7 +20,7 @@
 void *snrt_l1alloc(size_t size) {
     struct snrt_allocator_inst *alloc = &snrt_current_team()->allocator.l1;
 
-    size = ALIGN_UP(size, MIN_CHUNK_SIZE);
+    //size = ALIGN_UP(size, MIN_CHUNK_SIZE);
 
     if (alloc->next + size > alloc->base + alloc->size) {
         snrt_trace(
