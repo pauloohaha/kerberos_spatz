@@ -371,10 +371,22 @@ package spatz_pkg;
   } spatz_fp16_t;
 
   typedef struct packed {
+    logic [15:15] sign;
+    logic [14:7] exponent;
+    logic [6:0] mantissa;
+  } spatz_fp16_alt_t;
+
+  typedef struct packed {
     logic [7:7] sign;
     logic [6:2] exponent;
     logic [1:0] mantissa;
   } spatz_fp8_t;
+
+  typedef struct packed {
+    logic [7:7] sign;
+    logic [6:3] exponent;
+    logic [2:0] mantissa;
+  } spatz_fp8_alt_t;
 
   function automatic spatz_fp64_t widen_fp32_to_fp64(spatz_fp32_t operand);
     widen_fp32_to_fp64.sign     = operand.sign;
@@ -392,6 +404,12 @@ package spatz_pkg;
     widen_fp8_to_fp16.sign     = operand.sign;
     widen_fp8_to_fp16.exponent = operand.exponent;
     widen_fp8_to_fp16.mantissa = {operand.mantissa, 8'b0};
+  endfunction
+
+  function automatic spatz_fp16_alt_t widen_fp8_to_fp16_alt(spatz_fp8_alt_t operand);
+    widen_fp8_to_fp16_alt.sign     = operand.sign;
+    widen_fp8_to_fp16_alt.exponent = int'(operand.exponent - 7) + 127;
+    widen_fp8_to_fp16_alt.mantissa = {operand.mantissa, 4'b0};
   endfunction
 
 endpackage : spatz_pkg
