@@ -166,6 +166,10 @@ class SnitchCluster(Generator):
         Initialize with a given configuration. The constructor checks conformans
         to the cluster schema and constructs a `cfg` object.
         """
+        
+        # cluste file name adapdation
+        self.files["cluster"] = "src/" + cfg["name"] + ".sv.tpl"
+
         super().__init__("spatz_cluster.schema.json")
         self.mems = set()
         self.mems_desc = dict()
