@@ -94,7 +94,10 @@ package ${cfg['pkg_name']};
   localparam int unsigned ${cfg['name']}_PeriStartAddr = ${cfg['name']}_TCDMStartAddr + ${cfg['name']}_TCDMSize;
 
   localparam int unsigned BootAddr      = ${to_sv_hex(cfg['boot_addr'], cfg['addr_width'])};
-
+% if cfg['cluster_serial_link']:
+  localparam int unsigned NumChannels                        = ${cfg['serial_link']['NumChannels']};
+  localparam int unsigned NumLanes                           = ${cfg['serial_link']['NumLanes']};
+% endif
   function automatic snitch_pma_pkg::rule_t [snitch_pma_pkg::NrMaxRules-1:0] get_cached_regions();
     automatic snitch_pma_pkg::rule_t [snitch_pma_pkg::NrMaxRules-1:0] cached_regions;
     cached_regions = '{default: '0};
@@ -262,6 +265,16 @@ module ${cfg['name']}_wrapper
   input  logic axi_isolate_i,
   output logic axi_isolated_o,
 % endif
+
+% if cfg['cluster_serial_link']:
+    // d2d connections to SoC
+  output  logic  [NumChannels*NumLanes-1:0]   ddr_o,
+  input   logic  [NumChannels*NumLanes-1:0]   ddr_i,
+  
+  output  logic  [NumChannels-1:0]            ddr_rcv_clk_o,
+  input   logic  [NumChannels-1:0]            ddr_rcv_clk_i,
+% endif
+
 % if cfg['axi_cdc_enable']:
   % if cfg['sw_rst_enable']:
   input  logic                          pwr_on_rst_ni,
@@ -547,6 +560,13 @@ module ${cfg['name']}_wrapper
     .axi_core_default_user_i,
 % endif
     .cluster_probe_o,
+% if cfg['cluster_serial_link']:
+    // d2d connections from cluster
+    .ddr_o,
+    .ddr_i,
+    .ddr_rcv_clk_i,
+    .ddr_rcv_clk_o,
+% endif
 % if cfg['axi_cdc_enable']:
     // AXI Slave Port
     .axi_in_req_i   ( axi_to_cluster_req  ),

@@ -119,31 +119,6 @@ package snitch_pkg;
   localparam logic [3:0] SEI = 9;
   localparam logic [4:0] SCI = 17;
 
-  // Slaves on Cluster AXI Bus
-  typedef enum integer {
-    TCDM               = 0,
-    ClusterPeripherals = 1,
-    SoC                = 2
-  } cluster_slave_e;
-
-  typedef enum integer {
-    CoreReq  = 0,
-    SoCDMAIn = 1
-  } cluster_master_e;
-
-  // Slaves on Cluster DMA AXI Bus
-  typedef enum int unsigned {
-    TCDMDMA    = 0,
-    SoCDMAOut  = 1,
-    BootROM    = 2
-  } cluster_slave_dma_e;
-
-  typedef enum int unsigned {
-    CoreReqWide = 0,
-    SDMAMst     = 1,
-    ICache      = 2
-  } cluster_master_dma_e;
-
   /// Possible interconnect implementations.
   typedef enum bit {
     /// Crossbar implementation. We call it `LogarithmicInterconnect` because the

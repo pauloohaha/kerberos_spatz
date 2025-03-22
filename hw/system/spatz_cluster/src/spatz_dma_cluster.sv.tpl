@@ -92,6 +92,9 @@ module ${cfg['name']}
     parameter int                     unsigned               MaxMstTrans                        = 4,
     parameter int                     unsigned               MaxSlvTrans                        = 4,
     /// # Interface
+    /// Serial Link configurations
+    parameter int                     unsigned               NumChannels                        = 2,
+    parameter int                     unsigned               NumLanes                           = 8,
     /// AXI Ports
     parameter type                                           axi_in_req_t                       = logic,
     parameter type                                           axi_in_resp_t                      = logic,
@@ -135,6 +138,12 @@ module ${cfg['name']}
     /// Per-cluster probe on the cluster status. Can be written by the cores to indicate
     /// to the overall system that the cluster is executing something.
     output logic                             cluster_probe_o,
+    // Serial Link data connections
+    output logic [NumChannels*NumLanes-1:0]  ddr_o,
+    input  logic [NumChannels*NumLanes-1:0]  ddr_i,
+    // Serial Link DDR clk
+    input  logic [NumChannels-1:0]           ddr_rcv_clk_i,
+    output logic [NumChannels-1:0]           ddr_rcv_clk_o,
     /// AXI Core cluster in-port.
     input  axi_in_req_t                      axi_in_req_i,
     output axi_in_resp_t                     axi_in_resp_o,
@@ -173,6 +182,9 @@ module ${cfg['name']}
   localparam int   unsigned                    NumTCDMIn        = NrTCDMPortsCores + 1;
   localparam logic          [AxiAddrWidth-1:0] TCDMMask         = ~(TCDMSize-1);
 
+  // Serial link Config
+  localparam int unsigned MaxClkDiv       = serial_link_pkg::MaxClkDiv;
+
   // Core Request, SoC Request
   localparam int unsigned NrNarrowMasters = 2;
 
@@ -183,49 +195,16 @@ module ${cfg['name']}
   localparam int unsigned NarrowUserWidth  = AxiUserWidth;
 
   // TCDM, Peripherals, SoC Request
-  localparam int unsigned NrNarrowSlaves = 3;
+  localparam int unsigned NrNarrowSlaves = 5;
   localparam int unsigned NrNarrowRules  = NrNarrowSlaves - 1;
 
   // Core Request, DMA, Instruction cache
   localparam int unsigned NrWideMasters  = 3;
   localparam int unsigned WideIdWidthOut = AxiIdWidthOut;
   localparam int unsigned WideIdWidthIn  = WideIdWidthOut - $clog2(NrWideMasters);
+  
   // DMA X-BAR configuration
   localparam int unsigned NrWideSlaves   = 3;
-
-  // AXI Configuration
-  localparam axi_pkg::xbar_cfg_t ClusterXbarCfg = '{
-    NoSlvPorts        : NrNarrowMasters,
-    NoMstPorts        : NrNarrowSlaves,
-    MaxMstTrans       : MaxMstTrans,
-    MaxSlvTrans       : MaxSlvTrans,
-    FallThrough       : 1'b0,
-    LatencyMode       : XbarLatency,
-    AxiIdWidthSlvPorts: NarrowIdWidthIn,
-    AxiIdUsedSlvPorts : NarrowIdWidthIn,
-    UniqueIds         : 1'b0,
-    AxiAddrWidth      : AxiAddrWidth,
-    AxiDataWidth      : NarrowDataWidth,
-    NoAddrRules       : NrNarrowRules,
-    default           : '0
-  };
-
-  // DMA configuration struct
-  localparam axi_pkg::xbar_cfg_t DmaXbarCfg = '{
-    NoSlvPorts        : NrWideMasters,
-    NoMstPorts        : NrWideSlaves,
-    MaxMstTrans       : MaxMstTrans,
-    MaxSlvTrans       : MaxSlvTrans,
-    FallThrough       : 1'b0,
-    LatencyMode       : XbarLatency,
-    AxiIdWidthSlvPorts: WideIdWidthIn,
-    AxiIdUsedSlvPorts : WideIdWidthIn,
-    UniqueIds         : 1'b0,
-    AxiAddrWidth      : AxiAddrWidth,
-    AxiDataWidth      : AxiDataWidth,
-    NoAddrRules       : 2,
-    default           : '0
-  };
 
   // --------
   // Typedefs
@@ -355,6 +334,38 @@ module ${cfg['name']}
   } hive_rsp_t;
 
   // -----------
+  // Cross bar identifications
+  // -----------
+
+  // Slaves on Cluster AXI Bus
+  typedef enum integer {
+    TCDM               = 0,
+    ClusterPeripherals = 1,
+    SerialLinkCtrl     = 2,
+    SoC                = 3,
+    SerialLinkSlv      = 4
+  } cluster_slave_e;
+
+  typedef enum integer {
+    CoreReq       = 0,
+    SoCDMAIn      = 1,
+    SerialLinkMst = 2
+  } cluster_master_e;
+
+  // Slaves on Cluster DMA AXI Bus
+  typedef enum int unsigned {
+    TCDMDMA         = 0,
+    SoCDMAOut       = 1,
+    BootROM         = 2
+  } cluster_slave_dma_e;
+
+  typedef enum int unsigned {
+    CoreReqWide   = 0,
+    SDMAMst       = 1,
+    ICache        = 2
+  } cluster_master_dma_e;
+
+  // -----------
   // Assignments
   // -----------
   // Calculate start and end address of TCDM based on the `cluster_base_addr_i`.
@@ -365,6 +376,89 @@ module ${cfg['name']}
   addr_t cluster_periph_start_address, cluster_periph_end_address;
   assign cluster_periph_start_address = tcdm_end_address;
   assign cluster_periph_end_address   = tcdm_end_address + ClusterPeriphSize * 1024;
+
+  addr_t serial_link_ctrl_start_address, serial_link_ctrl_end_address;
+  assign serial_link_ctrl_start_address = cluster_periph_end_address;
+  assign serial_link_ctrl_end_address   = serial_link_ctrl_start_address + 64 * 1024; //allocate 64KB for serial link config reg
+
+  xbar_rule_t [NrNarrowRules-1:0] cluster_xbar_rules;
+
+  localparam logic [ClusterXbarCfg.NoSlvPorts-1:0][cf_math_pkg::idx_width(ClusterXbarCfg.NoMstPorts)-1:0] ClusterXbarDefaultPort      = '{default: SoC};
+  localparam bit   [ClusterXbarCfg.NoSlvPorts-1:0] ClusterEnableDefaultMstPort = '1;
+  assign cluster_xbar_rules = '{
+    '{
+      idx       : TCDM,
+      start_addr: tcdm_start_address,
+      end_addr  : tcdm_end_address
+    },
+    '{
+      idx       : ClusterPeripherals,
+      start_addr: cluster_periph_start_address,
+      end_addr  : cluster_periph_end_address
+    },
+    '{
+      idx       : SerialLinkCtrl,
+      start_addr: serial_link_ctrl_start_address,
+      end_addr  : serial_link_ctrl_end_address
+    },
+    '{
+      idx       : SerialLinkSlv,
+      start_addr: 32'h1000_0000, //DEBUG
+      end_addr  : 32'h2000_0000
+    }
+  };
+
+  logic       [DmaXbarCfg.NoSlvPorts-1:0][$clog2(DmaXbarCfg.NoMstPorts)-1:0] dma_xbar_default_port;
+  xbar_rule_t [DmaXbarCfg.NoAddrRules-1:0]                                   dma_xbar_rule;
+
+  assign dma_xbar_default_port = '{default: SoCDMAOut};
+  assign dma_xbar_rule         = '{
+    '{
+      idx       : TCDMDMA,
+      start_addr: tcdm_start_address,
+      end_addr  : tcdm_end_address
+    },
+    '{
+      idx       : BootROM,
+      start_addr: BootAddr,
+      end_addr  : BootAddr + 'h1000
+    }
+  };
+
+
+  // AXI Configuration
+  localparam axi_pkg::xbar_cfg_t ClusterXbarCfg = '{
+    NoSlvPorts        : NrNarrowMasters,
+    NoMstPorts        : NrNarrowSlaves,
+    MaxMstTrans       : MaxMstTrans,
+    MaxSlvTrans       : MaxSlvTrans,
+    FallThrough       : 1'b0,
+    LatencyMode       : XbarLatency,
+    AxiIdWidthSlvPorts: NarrowIdWidthIn,
+    AxiIdUsedSlvPorts : NarrowIdWidthIn,
+    UniqueIds         : 1'b0,
+    AxiAddrWidth      : AxiAddrWidth,
+    AxiDataWidth      : NarrowDataWidth,
+    NoAddrRules       : NrNarrowRules,
+    default           : '0
+  };
+
+  // DMA configuration struct
+  localparam axi_pkg::xbar_cfg_t DmaXbarCfg = '{
+    NoSlvPorts        : NrWideMasters,
+    NoMstPorts        : NrWideSlaves,
+    MaxMstTrans       : MaxMstTrans,
+    MaxSlvTrans       : MaxSlvTrans,
+    FallThrough       : 1'b0,
+    LatencyMode       : XbarLatency,
+    AxiIdWidthSlvPorts: WideIdWidthIn,
+    AxiIdUsedSlvPorts : WideIdWidthIn,
+    UniqueIds         : 1'b0,
+    AxiAddrWidth      : AxiAddrWidth,
+    AxiDataWidth      : AxiDataWidth,
+    NoAddrRules       : 2,
+    default           : '0
+  };
 
   // ----------------
   // Wire Definitions
@@ -411,6 +505,9 @@ module ${cfg['name']}
   // 5. Peripheral Subsystem
   reg_req_t reg_req;
   reg_rsp_t reg_rsp;
+
+  reg_req_t serial_link_reg_req;
+  reg_rsp_t serial_link_reg_rsp;
 
   // 6. BootROM
   reg_dma_req_t bootrom_reg_req;
@@ -460,22 +557,6 @@ module ${cfg['name']}
     .mst_resp_i (narrow_axi_mst_rsp[SoCDMAIn])
   );
 
-  logic       [DmaXbarCfg.NoSlvPorts-1:0][$clog2(DmaXbarCfg.NoMstPorts)-1:0] dma_xbar_default_port;
-  xbar_rule_t [DmaXbarCfg.NoAddrRules-1:0]                                   dma_xbar_rule;
-
-  assign dma_xbar_default_port = '{default: SoCDMAOut};
-  assign dma_xbar_rule         = '{
-    '{
-      idx       : TCDMDMA,
-      start_addr: tcdm_start_address,
-      end_addr  : tcdm_end_address
-    },
-    '{
-      idx       : BootROM,
-      start_addr: BootAddr,
-      end_addr  : BootAddr + 'h1000
-    }
-  };
 
   localparam bit [DmaXbarCfg.NoSlvPorts-1:0] DMAEnableDefaultMstPort = '1;
   axi_xbar #(
@@ -911,24 +992,6 @@ module ${cfg['name']}
     .axi_rsp_i    (narrow_axi_mst_rsp[CoreReq])
   );
 
-  xbar_rule_t [NrNarrowRules-1:0] cluster_xbar_rules;
-
-  assign cluster_xbar_rules = '{
-    '{
-      idx       : TCDM,
-      start_addr: tcdm_start_address,
-      end_addr  : tcdm_end_address
-    },
-    '{
-      idx       : ClusterPeripherals,
-      start_addr: cluster_periph_start_address,
-      end_addr  : cluster_periph_end_address
-    }
-  };
-
-  localparam bit   [ClusterXbarCfg.NoSlvPorts-1:0]                                                        ClusterEnableDefaultMstPort = '1;
-  localparam logic [ClusterXbarCfg.NoSlvPorts-1:0][cf_math_pkg::idx_width(ClusterXbarCfg.NoMstPorts)-1:0] ClusterXbarDefaultPort      = '{default: SoC};
-
   axi_xbar #(
     .Cfg           (ClusterXbarCfg   ),
     .slv_aw_chan_t (axi_mst_aw_chan_t),
@@ -1029,7 +1092,65 @@ module ${cfg['name']}
     .cluster_probe_o          (cluster_probe_o       )
   );
 
-  // 3. BootROM
+  // 3. Serial Link
+
+  axi_to_reg #(
+    .ADDR_WIDTH         (AxiAddrWidth     ),
+    .DATA_WIDTH         (NarrowDataWidth  ),
+    .AXI_MAX_WRITE_TXNS (1                ),
+    .AXI_MAX_READ_TXNS  (1                ),
+    .DECOUPLE_W         (0                ),
+    .ID_WIDTH           (NarrowIdWidthOut ),
+    .USER_WIDTH         (NarrowUserWidth  ),
+    .axi_req_t          (axi_slv_req_t    ),
+    .axi_rsp_t          (axi_slv_resp_t   ),
+    .reg_req_t          (reg_req_t        ),
+    .reg_rsp_t          (reg_rsp_t        )
+  ) i_axi_to_serial_link_reg (
+    .clk_i      (clk_i                                 ),
+    .rst_ni     (rst_ni                                ),
+    .testmode_i (1'b0                                  ),
+    .axi_req_i  (narrow_axi_slv_req[SerialLinkCtrl]    ),
+    .axi_rsp_o  (narrow_axi_slv_rsp[SerialLinkCtrl]    ),
+    .reg_req_o  (serial_link_reg_req                   ),
+    .reg_rsp_i  (serial_link_reg_rsp                   )
+  );
+
+  serial_link_occamy_wrapper #(
+    .axi_req_t        ( axi_slv_req_t       ),
+    .axi_rsp_t        ( axi_slv_resp_t      ),
+    .aw_chan_t        ( axi_slv_aw_chan_t   ),
+    .w_chan_t         ( axi_slv_w_chan_t    ),
+    .b_chan_t         ( axi_slv_b_chan_t    ),
+    .ar_chan_t        ( axi_slv_ar_chan_t   ),
+    .r_chan_t         ( axi_slv_r_chan_t    ),
+    .cfg_req_t        ( reg_req_t           ),
+    .cfg_rsp_t        ( reg_rsp_t           ),
+    .NumChannels      ( NumChannels         ),
+    .NumLanes         ( NumLanes            ),
+    .MaxClkDiv        ( MaxClkDiv           ),
+    .EnDdr            ( 1'b1                )
+  ) i_serial_link (
+      .clk_i          ( clk_i                             ),
+      .rst_ni         ( rst_ni                            ),
+      .clk_reg_i      ( clk_i                             ),
+      .rst_reg_ni     ( rst_ni                            ),
+      .testmode_i     ( 1'b0                              ),
+      .axi_in_req_i   ( narrow_axi_slv_req[SerialLinkSlv] ),
+      .axi_in_rsp_o   ( narrow_axi_slv_rsp[SerialLinkSlv] ),
+      .axi_out_req_o  ( narrow_axi_mst_req[SerialLinkMst] ),
+      .axi_out_rsp_i  ( narrow_axi_mst_req[SerialLinkMst] ),
+      .cfg_req_i      ( serial_link_reg_req               ),
+      .cfg_rsp_o      ( serial_link_reg_rsp               ),
+      .ddr_rcv_clk_i  ( ddr_rcv_clk_i                     ),
+      .ddr_rcv_clk_o  ( ddr_rcv_clk_o                     ),
+      .ddr_i          ( ddr_i                             ),
+      .ddr_o          ( ddr_o                             )
+  );
+
+
+
+  // 4. BootROM
   axi_to_reg #(
     .ADDR_WIDTH         (AxiAddrWidth      ),
     .DATA_WIDTH         (AxiDataWidth      ),

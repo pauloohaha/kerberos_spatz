@@ -190,42 +190,9 @@ module ${cfg['name']}
   localparam int unsigned NrWideMasters  = 3;
   localparam int unsigned WideIdWidthOut = AxiIdWidthOut;
   localparam int unsigned WideIdWidthIn  = WideIdWidthOut - $clog2(NrWideMasters);
+
   // DMA X-BAR configuration
   localparam int unsigned NrWideSlaves   = 3;
-
-  // AXI Configuration
-  localparam axi_pkg::xbar_cfg_t ClusterXbarCfg = '{
-    NoSlvPorts        : NrNarrowMasters,
-    NoMstPorts        : NrNarrowSlaves,
-    MaxMstTrans       : MaxMstTrans,
-    MaxSlvTrans       : MaxSlvTrans,
-    FallThrough       : 1'b0,
-    LatencyMode       : XbarLatency,
-    AxiIdWidthSlvPorts: NarrowIdWidthIn,
-    AxiIdUsedSlvPorts : NarrowIdWidthIn,
-    UniqueIds         : 1'b0,
-    AxiAddrWidth      : AxiAddrWidth,
-    AxiDataWidth      : NarrowDataWidth,
-    NoAddrRules       : NrNarrowRules,
-    default           : '0
-  };
-
-  // DMA configuration struct
-  localparam axi_pkg::xbar_cfg_t DmaXbarCfg = '{
-    NoSlvPorts        : NrWideMasters,
-    NoMstPorts        : NrWideSlaves,
-    MaxMstTrans       : MaxMstTrans,
-    MaxSlvTrans       : MaxSlvTrans,
-    FallThrough       : 1'b0,
-    LatencyMode       : XbarLatency,
-    AxiIdWidthSlvPorts: WideIdWidthIn,
-    AxiIdUsedSlvPorts : WideIdWidthIn,
-    UniqueIds         : 1'b0,
-    AxiAddrWidth      : AxiAddrWidth,
-    AxiDataWidth      : AxiDataWidth,
-    NoAddrRules       : 2,
-    default           : '0
-  };
 
   // --------
   // Typedefs
@@ -353,6 +320,37 @@ module ${cfg['name']}
     l0_pte_t [1:0] ptw_pte;
     logic [1:0] ptw_is_4mega;
   } hive_rsp_t;
+  
+  // -----------
+  // Cross bar identifications
+  // -----------
+
+  // Slaves on Cluster AXI Bus
+  typedef enum integer {
+    TCDM               = 0,
+    ClusterPeripherals = 1,
+    SoC                = 2
+  } cluster_slave_e;
+
+  typedef enum integer {
+    CoreReq  = 0,
+    SoCDMAIn = 1
+  } cluster_master_e;
+
+  // Slaves on Cluster DMA AXI Bus
+  typedef enum int unsigned {
+    TCDMDMA         = 0,
+    SoCDMAOut       = 1,
+    BootROM         = 2,
+    SerialLinkSlv   = 3
+  } cluster_slave_dma_e;
+
+  typedef enum int unsigned {
+    CoreReqWide   = 0,
+    SDMAMst       = 1,
+    ICache        = 2,
+    SerialLinkMst = 3
+  } cluster_master_dma_e;
 
   // -----------
   // Assignments
@@ -365,6 +363,74 @@ module ${cfg['name']}
   addr_t cluster_periph_start_address, cluster_periph_end_address;
   assign cluster_periph_start_address = tcdm_end_address;
   assign cluster_periph_end_address   = tcdm_end_address + ClusterPeriphSize * 1024;
+  xbar_rule_t [NrNarrowRules-1:0] cluster_xbar_rules;
+
+  localparam logic [ClusterXbarCfg.NoSlvPorts-1:0][cf_math_pkg::idx_width(ClusterXbarCfg.NoMstPorts)-1:0] ClusterXbarDefaultPort      = '{default: SoC};
+    localparam bit   [ClusterXbarCfg.NoSlvPorts-1:0] ClusterEnableDefaultMstPort = '1;
+  assign cluster_xbar_rules = '{
+    '{
+      idx       : TCDM,
+      start_addr: tcdm_start_address,
+      end_addr  : tcdm_end_address
+    },
+    '{
+      idx       : ClusterPeripherals,
+      start_addr: cluster_periph_start_address,
+      end_addr  : cluster_periph_end_address
+    }
+  };
+
+  logic       [DmaXbarCfg.NoSlvPorts-1:0][$clog2(DmaXbarCfg.NoMstPorts)-1:0] dma_xbar_default_port;
+  xbar_rule_t [DmaXbarCfg.NoAddrRules-1:0]                                   dma_xbar_rule;
+
+  assign dma_xbar_default_port = '{default: SoCDMAOut};
+  assign dma_xbar_rule         = '{
+    '{
+      idx       : TCDMDMA,
+      start_addr: tcdm_start_address,
+      end_addr  : tcdm_end_address
+    },
+    '{
+      idx       : BootROM,
+      start_addr: BootAddr,
+      end_addr  : BootAddr + 'h1000
+    }
+  };
+
+
+  // AXI Configuration
+  localparam axi_pkg::xbar_cfg_t ClusterXbarCfg = '{
+    NoSlvPorts        : NrNarrowMasters,
+    NoMstPorts        : NrNarrowSlaves,
+    MaxMstTrans       : MaxMstTrans,
+    MaxSlvTrans       : MaxSlvTrans,
+    FallThrough       : 1'b0,
+    LatencyMode       : XbarLatency,
+    AxiIdWidthSlvPorts: NarrowIdWidthIn,
+    AxiIdUsedSlvPorts : NarrowIdWidthIn,
+    UniqueIds         : 1'b0,
+    AxiAddrWidth      : AxiAddrWidth,
+    AxiDataWidth      : NarrowDataWidth,
+    NoAddrRules       : NrNarrowRules,
+    default           : '0
+  };
+
+  // DMA configuration struct
+  localparam axi_pkg::xbar_cfg_t DmaXbarCfg = '{
+    NoSlvPorts        : NrWideMasters,
+    NoMstPorts        : NrWideSlaves,
+    MaxMstTrans       : MaxMstTrans,
+    MaxSlvTrans       : MaxSlvTrans,
+    FallThrough       : 1'b0,
+    LatencyMode       : XbarLatency,
+    AxiIdWidthSlvPorts: WideIdWidthIn,
+    AxiIdUsedSlvPorts : WideIdWidthIn,
+    UniqueIds         : 1'b0,
+    AxiAddrWidth      : AxiAddrWidth,
+    AxiDataWidth      : AxiDataWidth,
+    NoAddrRules       : 2,
+    default           : '0
+  };
 
   // ----------------
   // Wire Definitions
@@ -460,22 +526,6 @@ module ${cfg['name']}
     .mst_resp_i (narrow_axi_mst_rsp[SoCDMAIn])
   );
 
-  logic       [DmaXbarCfg.NoSlvPorts-1:0][$clog2(DmaXbarCfg.NoMstPorts)-1:0] dma_xbar_default_port;
-  xbar_rule_t [DmaXbarCfg.NoAddrRules-1:0]                                   dma_xbar_rule;
-
-  assign dma_xbar_default_port = '{default: SoCDMAOut};
-  assign dma_xbar_rule         = '{
-    '{
-      idx       : TCDMDMA,
-      start_addr: tcdm_start_address,
-      end_addr  : tcdm_end_address
-    },
-    '{
-      idx       : BootROM,
-      start_addr: BootAddr,
-      end_addr  : BootAddr + 'h1000
-    }
-  };
 
   localparam bit [DmaXbarCfg.NoSlvPorts-1:0] DMAEnableDefaultMstPort = '1;
   axi_xbar #(
@@ -910,24 +960,6 @@ module ${cfg['name']}
     .axi_req_o    (narrow_axi_mst_req[CoreReq]),
     .axi_rsp_i    (narrow_axi_mst_rsp[CoreReq])
   );
-
-  xbar_rule_t [NrNarrowRules-1:0] cluster_xbar_rules;
-
-  assign cluster_xbar_rules = '{
-    '{
-      idx       : TCDM,
-      start_addr: tcdm_start_address,
-      end_addr  : tcdm_end_address
-    },
-    '{
-      idx       : ClusterPeripherals,
-      start_addr: cluster_periph_start_address,
-      end_addr  : cluster_periph_end_address
-    }
-  };
-
-  localparam bit   [ClusterXbarCfg.NoSlvPorts-1:0]                                                        ClusterEnableDefaultMstPort = '1;
-  localparam logic [ClusterXbarCfg.NoSlvPorts-1:0][cf_math_pkg::idx_width(ClusterXbarCfg.NoMstPorts)-1:0] ClusterXbarDefaultPort      = '{default: SoC};
 
   axi_xbar #(
     .Cfg           (ClusterXbarCfg   ),
