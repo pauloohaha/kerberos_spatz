@@ -28,6 +28,8 @@ module ${cfg['name']}
   import spatz_pkg::*;
   import fpnew_pkg::fpu_implementation_t;
   import snitch_pma_pkg::snitch_pma_t;
+  import serial_link_pkg::serial_link_cfg_req_t;
+  import serial_link_pkg::serial_link_cfg_rsp_t;
   #(
     /// Width of physical address.
     parameter int                     unsigned               AxiAddrWidth                       = 48,
@@ -505,9 +507,6 @@ module ${cfg['name']}
   // 5. Peripheral Subsystem
   reg_req_t reg_req;
   reg_rsp_t reg_rsp;
-
-  reg_req_t serial_link_reg_req;
-  reg_rsp_t serial_link_reg_rsp;
 
   // 6. BootROM
   reg_dma_req_t bootrom_reg_req;
@@ -1094,18 +1093,24 @@ module ${cfg['name']}
 
   // 3. Serial Link
 
+  axi_slv_req_t     serial_link_axi_out_req;
+  axi_slv_resp_t    serial_link_axi_out_rsp;
+
+  serial_link_cfg_req_t serial_link_reg_req;
+  serial_link_cfg_rsp_t serial_link_reg_rsp;
+
   axi_to_reg #(
-    .ADDR_WIDTH         (AxiAddrWidth     ),
-    .DATA_WIDTH         (NarrowDataWidth  ),
-    .AXI_MAX_WRITE_TXNS (1                ),
-    .AXI_MAX_READ_TXNS  (1                ),
-    .DECOUPLE_W         (0                ),
-    .ID_WIDTH           (NarrowIdWidthOut ),
-    .USER_WIDTH         (NarrowUserWidth  ),
-    .axi_req_t          (axi_slv_req_t    ),
-    .axi_rsp_t          (axi_slv_resp_t   ),
-    .reg_req_t          (reg_req_t        ),
-    .reg_rsp_t          (reg_rsp_t        )
+    .ADDR_WIDTH         (AxiAddrWidth          ),
+    .DATA_WIDTH         (NarrowDataWidth       ),
+    .AXI_MAX_WRITE_TXNS (1                     ),
+    .AXI_MAX_READ_TXNS  (1                     ),
+    .DECOUPLE_W         (0                     ),
+    .ID_WIDTH           (NarrowIdWidthOut      ),
+    .USER_WIDTH         (NarrowUserWidth       ),
+    .axi_req_t          (axi_slv_req_t         ),
+    .axi_rsp_t          (axi_slv_resp_t        ),
+    .reg_req_t          (serial_link_cfg_req_t ),
+    .reg_rsp_t          (serial_link_cfg_rsp_t )
   ) i_axi_to_serial_link_reg (
     .clk_i      (clk_i                                 ),
     .rst_ni     (rst_ni                                ),
@@ -1117,19 +1122,19 @@ module ${cfg['name']}
   );
 
   serial_link_occamy_wrapper #(
-    .axi_req_t        ( axi_slv_req_t       ),
-    .axi_rsp_t        ( axi_slv_resp_t      ),
-    .aw_chan_t        ( axi_slv_aw_chan_t   ),
-    .w_chan_t         ( axi_slv_w_chan_t    ),
-    .b_chan_t         ( axi_slv_b_chan_t    ),
-    .ar_chan_t        ( axi_slv_ar_chan_t   ),
-    .r_chan_t         ( axi_slv_r_chan_t    ),
-    .cfg_req_t        ( reg_req_t           ),
-    .cfg_rsp_t        ( reg_rsp_t           ),
-    .NumChannels      ( NumChannels         ),
-    .NumLanes         ( NumLanes            ),
-    .MaxClkDiv        ( MaxClkDiv           ),
-    .EnDdr            ( 1'b1                )
+    .axi_req_t        ( axi_slv_req_t         ),
+    .axi_rsp_t        ( axi_slv_resp_t        ),
+    .aw_chan_t        ( axi_slv_aw_chan_t     ),
+    .w_chan_t         ( axi_slv_w_chan_t      ),
+    .b_chan_t         ( axi_slv_b_chan_t      ),
+    .ar_chan_t        ( axi_slv_ar_chan_t     ),
+    .r_chan_t         ( axi_slv_r_chan_t      ),
+    .cfg_req_t        ( serial_link_cfg_req_t ),
+    .cfg_rsp_t        ( serial_link_cfg_rsp_t ),
+    .NumChannels      ( NumChannels           ),
+    .NumLanes         ( NumLanes              ),
+    .MaxClkDiv        ( MaxClkDiv             ),
+    .EnDdr            ( 1'b1                  )
   ) i_serial_link (
       .clk_i          ( clk_i                             ),
       .rst_ni         ( rst_ni                            ),
@@ -1138,8 +1143,8 @@ module ${cfg['name']}
       .testmode_i     ( 1'b0                              ),
       .axi_in_req_i   ( narrow_axi_slv_req[SerialLinkSlv] ),
       .axi_in_rsp_o   ( narrow_axi_slv_rsp[SerialLinkSlv] ),
-      .axi_out_req_o  ( narrow_axi_mst_req[SerialLinkMst] ),
-      .axi_out_rsp_i  ( narrow_axi_mst_req[SerialLinkMst] ),
+      .axi_out_req_o  ( serial_link_axi_out_req           ),
+      .axi_out_rsp_i  ( serial_link_axi_out_rsp           ),
       .cfg_req_i      ( serial_link_reg_req               ),
       .cfg_rsp_o      ( serial_link_reg_rsp               ),
       .ddr_rcv_clk_i  ( ddr_rcv_clk_i                     ),
@@ -1148,6 +1153,31 @@ module ${cfg['name']}
       .ddr_o          ( ddr_o                             )
   );
 
+  /*serial link output in AXI slv ID width, wider than the AXI mst ID width, need id width conversion*/
+  /*only allow one in flight axi transaction to/from DMA serial link*/
+  axi_iw_converter #(
+      .AxiAddrWidth          (AxiAddrWidth             ),
+      .AxiDataWidth          (NarrowDataWidth          ),
+      .AxiUserWidth          (AxiUserWidth             ),
+      .AxiSlvPortIdWidth     (NarrowIdWidthOut         ),
+      .AxiSlvPortMaxUniqIds  (1                        ),
+      .AxiSlvPortMaxTxnsPerId(1                        ),
+      .AxiSlvPortMaxTxns     (1                        ),
+      .AxiMstPortIdWidth     (NarrowIdWidthIn          ),
+      .AxiMstPortMaxUniqIds  (1                        ),
+      .AxiMstPortMaxTxnsPerId(1                        ),
+      .slv_req_t             (axi_slv_req_t            ),
+      .slv_resp_t            (axi_slv_resp_t           ),
+      .mst_req_t             (axi_mst_req_t            ),
+      .mst_resp_t            (axi_mst_resp_t           )
+  ) i_dma_serial_link_iw_convert (
+      .clk_i      (clk_i                             ),
+      .rst_ni     (rst_ni                            ),
+      .slv_req_i  (serial_link_axi_out_req           ),
+      .slv_resp_o (serial_link_axi_out_rsp           ),
+      .mst_req_o  (narrow_axi_mst_req[SerialLinkMst] ),
+      .mst_resp_i (narrow_axi_mst_rsp[SerialLinkMst] )
+    );
 
 
   // 4. BootROM

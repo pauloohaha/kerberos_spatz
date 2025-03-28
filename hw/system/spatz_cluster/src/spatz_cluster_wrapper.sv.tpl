@@ -537,6 +537,10 @@ module ${cfg['name']}_wrapper
     .RegisterTCDMCuts (${int(cfg['timing']['register_tcdm_cuts'])}),
     .RegisterExt (${int(cfg['timing']['register_ext'])}),
     .XbarLatency (axi_pkg::${cfg['timing']['xbar_latency']}),
+% if cfg['cluster_serial_link']:
+    .NumChannels (NumChannels),
+    .NumLanes (NumLanes),
+% endif
     .MaxMstTrans (${cfg['trans']}),
     .MaxSlvTrans (${cfg['trans']})
   ) i_cluster (
