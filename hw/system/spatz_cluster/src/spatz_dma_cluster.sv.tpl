@@ -188,7 +188,7 @@ module ${cfg['name']}
   localparam int unsigned MaxClkDiv       = serial_link_pkg::MaxClkDiv;
 
   // Core Request, SoC Request
-  localparam int unsigned NrNarrowMasters = 2;
+  localparam int unsigned NrNarrowMasters = 3;
 
   // Narrow AXI network parameters
   localparam int unsigned NarrowIdWidthIn  = AxiIdWidthIn;
@@ -367,6 +367,40 @@ module ${cfg['name']}
     ICache        = 2
   } cluster_master_dma_e;
 
+  // AXI Configuration
+  localparam axi_pkg::xbar_cfg_t ClusterXbarCfg = '{
+    NoSlvPorts        : NrNarrowMasters,
+    NoMstPorts        : NrNarrowSlaves,
+    MaxMstTrans       : MaxMstTrans,
+    MaxSlvTrans       : MaxSlvTrans,
+    FallThrough       : 1'b0,
+    LatencyMode       : XbarLatency,
+    AxiIdWidthSlvPorts: NarrowIdWidthIn,
+    AxiIdUsedSlvPorts : NarrowIdWidthIn,
+    UniqueIds         : 1'b0,
+    AxiAddrWidth      : AxiAddrWidth,
+    AxiDataWidth      : NarrowDataWidth,
+    NoAddrRules       : NrNarrowRules,
+    default           : '0
+  };
+
+  // DMA configuration struct
+  localparam axi_pkg::xbar_cfg_t DmaXbarCfg = '{
+    NoSlvPorts        : NrWideMasters,
+    NoMstPorts        : NrWideSlaves,
+    MaxMstTrans       : MaxMstTrans,
+    MaxSlvTrans       : MaxSlvTrans,
+    FallThrough       : 1'b0,
+    LatencyMode       : XbarLatency,
+    AxiIdWidthSlvPorts: WideIdWidthIn,
+    AxiIdUsedSlvPorts : WideIdWidthIn,
+    UniqueIds         : 1'b0,
+    AxiAddrWidth      : AxiAddrWidth,
+    AxiDataWidth      : AxiDataWidth,
+    NoAddrRules       : 2,
+    default           : '0
+  };
+
   // -----------
   // Assignments
   // -----------
@@ -425,41 +459,6 @@ module ${cfg['name']}
       start_addr: BootAddr,
       end_addr  : BootAddr + 'h1000
     }
-  };
-
-
-  // AXI Configuration
-  localparam axi_pkg::xbar_cfg_t ClusterXbarCfg = '{
-    NoSlvPorts        : NrNarrowMasters,
-    NoMstPorts        : NrNarrowSlaves,
-    MaxMstTrans       : MaxMstTrans,
-    MaxSlvTrans       : MaxSlvTrans,
-    FallThrough       : 1'b0,
-    LatencyMode       : XbarLatency,
-    AxiIdWidthSlvPorts: NarrowIdWidthIn,
-    AxiIdUsedSlvPorts : NarrowIdWidthIn,
-    UniqueIds         : 1'b0,
-    AxiAddrWidth      : AxiAddrWidth,
-    AxiDataWidth      : NarrowDataWidth,
-    NoAddrRules       : NrNarrowRules,
-    default           : '0
-  };
-
-  // DMA configuration struct
-  localparam axi_pkg::xbar_cfg_t DmaXbarCfg = '{
-    NoSlvPorts        : NrWideMasters,
-    NoMstPorts        : NrWideSlaves,
-    MaxMstTrans       : MaxMstTrans,
-    MaxSlvTrans       : MaxSlvTrans,
-    FallThrough       : 1'b0,
-    LatencyMode       : XbarLatency,
-    AxiIdWidthSlvPorts: WideIdWidthIn,
-    AxiIdUsedSlvPorts : WideIdWidthIn,
-    UniqueIds         : 1'b0,
-    AxiAddrWidth      : AxiAddrWidth,
-    AxiDataWidth      : AxiDataWidth,
-    NoAddrRules       : 2,
-    default           : '0
   };
 
   // ----------------

@@ -352,6 +352,40 @@ module ${cfg['name']}
     SerialLinkMst = 3
   } cluster_master_dma_e;
 
+  // AXI Configuration
+  localparam axi_pkg::xbar_cfg_t ClusterXbarCfg = '{
+    NoSlvPorts        : NrNarrowMasters,
+    NoMstPorts        : NrNarrowSlaves,
+    MaxMstTrans       : MaxMstTrans,
+    MaxSlvTrans       : MaxSlvTrans,
+    FallThrough       : 1'b0,
+    LatencyMode       : XbarLatency,
+    AxiIdWidthSlvPorts: NarrowIdWidthIn,
+    AxiIdUsedSlvPorts : NarrowIdWidthIn,
+    UniqueIds         : 1'b0,
+    AxiAddrWidth      : AxiAddrWidth,
+    AxiDataWidth      : NarrowDataWidth,
+    NoAddrRules       : NrNarrowRules,
+    default           : '0
+  };
+
+  // DMA configuration struct
+  localparam axi_pkg::xbar_cfg_t DmaXbarCfg = '{
+    NoSlvPorts        : NrWideMasters,
+    NoMstPorts        : NrWideSlaves,
+    MaxMstTrans       : MaxMstTrans,
+    MaxSlvTrans       : MaxSlvTrans,
+    FallThrough       : 1'b0,
+    LatencyMode       : XbarLatency,
+    AxiIdWidthSlvPorts: WideIdWidthIn,
+    AxiIdUsedSlvPorts : WideIdWidthIn,
+    UniqueIds         : 1'b0,
+    AxiAddrWidth      : AxiAddrWidth,
+    AxiDataWidth      : AxiDataWidth,
+    NoAddrRules       : 2,
+    default           : '0
+  };
+
   // -----------
   // Assignments
   // -----------
@@ -395,41 +429,6 @@ module ${cfg['name']}
       start_addr: BootAddr,
       end_addr  : BootAddr + 'h1000
     }
-  };
-
-
-  // AXI Configuration
-  localparam axi_pkg::xbar_cfg_t ClusterXbarCfg = '{
-    NoSlvPorts        : NrNarrowMasters,
-    NoMstPorts        : NrNarrowSlaves,
-    MaxMstTrans       : MaxMstTrans,
-    MaxSlvTrans       : MaxSlvTrans,
-    FallThrough       : 1'b0,
-    LatencyMode       : XbarLatency,
-    AxiIdWidthSlvPorts: NarrowIdWidthIn,
-    AxiIdUsedSlvPorts : NarrowIdWidthIn,
-    UniqueIds         : 1'b0,
-    AxiAddrWidth      : AxiAddrWidth,
-    AxiDataWidth      : NarrowDataWidth,
-    NoAddrRules       : NrNarrowRules,
-    default           : '0
-  };
-
-  // DMA configuration struct
-  localparam axi_pkg::xbar_cfg_t DmaXbarCfg = '{
-    NoSlvPorts        : NrWideMasters,
-    NoMstPorts        : NrWideSlaves,
-    MaxMstTrans       : MaxMstTrans,
-    MaxSlvTrans       : MaxSlvTrans,
-    FallThrough       : 1'b0,
-    LatencyMode       : XbarLatency,
-    AxiIdWidthSlvPorts: WideIdWidthIn,
-    AxiIdUsedSlvPorts : WideIdWidthIn,
-    UniqueIds         : 1'b0,
-    AxiAddrWidth      : AxiAddrWidth,
-    AxiDataWidth      : AxiDataWidth,
-    NoAddrRules       : 2,
-    default           : '0
   };
 
   // ----------------
