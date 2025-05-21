@@ -178,7 +178,7 @@ module ${cfg['name']}
   // Parameters
   localparam int unsigned  SOFTEX_NC = 2;
   localparam int unsigned  SOFTEX_ID = 8;
-  localparam int unsigned  SOFTEX_DW = 256;
+  localparam int unsigned  SOFTEX_DW = 256 + 64;
   localparam int unsigned  SOFTEX_MP = SOFTEX_DW/64;
 
   // Now the number for the cores + the softex cores
