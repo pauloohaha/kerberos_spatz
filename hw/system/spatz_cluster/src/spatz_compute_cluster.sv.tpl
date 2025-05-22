@@ -148,14 +148,9 @@ module ${cfg['name']}
   import snitch_pkg::*;
   import snitch_icache_pkg::icache_events_t;
 
-  //MARIUS: SoftEx
-  // import the package with our SoftEx parameters/types
+  //SoftEx
   import softex_pkg::*;
 
-  // ---------
-  // Constants
-  // ---------
-  /// Minimum width to hold the core number.
   localparam int unsigned CoreIDWidth       = cf_math_pkg::idx_width(NrCores);
   localparam int unsigned TCDMMemAddrWidth  = $clog2(TCDMDepth);
   localparam int unsigned TCDMSize          = NrBanks * TCDMDepth * (DataWidth/8);
@@ -173,12 +168,10 @@ module ${cfg['name']}
     return n;
   endfunction
   
-  //MARIUS: SoftEx
-
   // Parameters
   localparam int unsigned  SOFTEX_NC = 2;
   localparam int unsigned  SOFTEX_ID = 8;
-  localparam int unsigned  SOFTEX_DW = 256 + 64;
+  localparam int unsigned  SOFTEX_DW = 256 + 64; // +64 is crucial for stream alignment
   localparam int unsigned  SOFTEX_MP = SOFTEX_DW/64;
 
   // Now the number for the cores + the softex cores
@@ -197,7 +190,7 @@ module ${cfg['name']}
   localparam int unsigned NarrowUserWidth  = AxiUserWidth;
 
   // TCDM, Peripherals, SoC Request
-  localparam int unsigned NrNarrowSlaves = 4; //MARIUS: for SoftEx
+  localparam int unsigned NrNarrowSlaves = 4;
   localparam int unsigned NrNarrowRules  = NrNarrowSlaves - 1;
 
   // Core Request, DMA, Instruction cache
@@ -344,7 +337,6 @@ module ${cfg['name']}
     TCDM               = 0,
     ClusterPeripherals = 1,
     SoC                = 2,
-    //MARIUS: add type
     SoftEx             = 3
   } cluster_slave_e;
 
@@ -414,8 +406,6 @@ module ${cfg['name']}
   assign cluster_periph_start_address = tcdm_end_address;
   assign cluster_periph_end_address   = tcdm_end_address + ClusterPeriphSize * 1024;
   
-  
-  //MARIUS: use variables for start/end address
   addr_t softex_start_address, softex_end_address;
   assign softex_start_address = cluster_periph_end_address;
   assign softex_end_address   = softex_start_address + ClusterPeriphSize * 1024;
@@ -436,7 +426,6 @@ module ${cfg['name']}
       start_addr: cluster_periph_start_address,
       end_addr  : cluster_periph_end_address
     },
-    //MARIUS: new rule for SoftEx
     '{
       idx       : SoftEx,
       start_addr: softex_start_address,
@@ -869,24 +858,16 @@ module ${cfg['name']}
       assign axi_dma_res = '0;
     end
   end
-
-  //MARIUS: SoftEx
    
   // ----------------
   // SoftEx accelerator
   // ----------------
 
-  localparam int unsigned SoftExTcdmPortsOffs = get_tcdm_port_offs(NrCores); ///MARIUS: Maybe + MP or so..
-  localparam int unsigned SoftExTcdmPorts = SOFTEX_MP; //MARIUS: Not Sure
-
-
-    // Instantiate SoftEx wrapper
-  // Signal declarations for interface conversion
-  //tcdm_req_t [SoftExTcdmPorts-1:0] softex_tcdm_req_wo_user;
+  localparam int unsigned SoftExTcdmPortsOffs = get_tcdm_port_offs(NrCores); 
+  localparam int unsigned SoftExTcdmPorts = SOFTEX_MP; 
 
   // TCMD REQUEST
   logic [SoftExTcdmPorts-1:0] softex_req_o;
-  //MARIUS, old: logic [TCDMMemAddrWidth-1:0][31:0] softex_addr_o;
   logic [SoftExTcdmPorts-1:0][31:0] softex_addr_o;
   logic [SoftExTcdmPorts-1:0] softex_wen_o;
   logic [SoftExTcdmPorts-1:0][7:0] softex_be_o;
@@ -930,24 +911,24 @@ module ${cfg['name']}
     .rst_ni             (rst_ni                             ),
     .axi_req_i          (narrow_axi_slv_req[SoftEx]         ),
     .axi_rsp_o          (narrow_axi_slv_rsp[SoftEx]         ),
-    .periph_req_o       (softex_periph_req                ),
-    .periph_gnt_i       (softex_periph_gnt                ),
-    .periph_add_o       (softex_periph_add                ),
-    .periph_wen_o       (softex_periph_wen                ),
-    .periph_be_o        (softex_periph_be                 ),
-    .periph_data_o      (softex_periph_data               ),
-    .periph_id_o        (softex_periph_id                 ),
-    .periph_r_data_i    (softex_periph_r_data             ),
-    .periph_r_valid_i   (softex_periph_r_valid            ),
-    .periph_r_id_i      (softex_periph_r_id               ),
+    .periph_req_o       (softex_periph_req                  ),
+    .periph_gnt_i       (softex_periph_gnt                  ),
+    .periph_add_o       (softex_periph_add                  ),
+    .periph_wen_o       (softex_periph_wen                  ),
+    .periph_be_o        (softex_periph_be                   ),
+    .periph_data_o      (softex_periph_data                 ),
+    .periph_id_o        (softex_periph_id                   ),
+    .periph_r_data_i    (softex_periph_r_data               ),
+    .periph_r_valid_i   (softex_periph_r_valid              ),
+    .periph_r_id_i      (softex_periph_r_id                 ),
     .busy_o             ( /* unused */                      )
   );
 
   softex_wrap #(
-    .ID_WIDTH           ( SOFTEX_ID),
-    .N_CORES            ( SOFTEX_NC),
-    .DW                 ( SOFTEX_DW),
-    .MP                 ( SOFTEX_MP)
+    .ID_WIDTH           ( SOFTEX_ID ),
+    .N_CORES            ( SOFTEX_NC ),
+    .DW                 ( SOFTEX_DW ),
+    .MP                 ( SOFTEX_MP )
   ) i_softex (
     .clk_i          (clk_i         ),
     .rst_ni         (rst_ni        ),
@@ -960,43 +941,40 @@ module ${cfg['name']}
     // TCDM master ports
     .tcdm_req_o     (softex_req_o    ),
     .tcdm_add_o     (softex_addr_o   ),
-    .tcdm_wen_o     (softex_wen_o),
+    .tcdm_wen_o     (softex_wen_o    ),
     .tcdm_be_o      (softex_be_o     ),
     .tcdm_data_o    (softex_wdata_o  ),
     .tcdm_r_ready_o (),
-    .tcdm_id_o      (softex_id_o),
+    .tcdm_id_o      (softex_id_o     ),
 
-    .tcdm_gnt_i     (softex_gnt_i  ),
+    .tcdm_gnt_i     (softex_gnt_i    ),
     .tcdm_r_data_i  (softex_rdata_i  ),
-    .tcdm_r_valid_i (softex_rvalid_i  ),
-    .tcdm_r_opc_i   ('0  ),
-    .tcdm_r_user_i  ('0 ),
-    .tcdm_r_id_i    ('0),
+    .tcdm_r_valid_i (softex_rvalid_i ),
+    .tcdm_r_opc_i   ('0              ),
+    .tcdm_r_user_i  ('0              ),
+    .tcdm_r_id_i    ('0              ),
 
     // Peripheral (register) slave interface
-    .periph_req_i    (softex_periph_req  ),
-    .periph_gnt_o    (softex_periph_gnt),
-    .periph_add_i    (softex_periph_add ),
+    .periph_req_i    (softex_periph_req   ),
+    .periph_gnt_o    (softex_periph_gnt   ),
+    .periph_add_i    (softex_periph_add   ),
     .periph_wen_i    (softex_periph_wen   ),
-    .periph_be_i     (softex_periph_be   ), //somehow this is 4 bit, input is 8 however..
-    .periph_data_i   (softex_periph_data),  //somehow this is 32 bit, input is 64 however..
-    .periph_id_i     (softex_periph_id),
+    .periph_be_i     (softex_periph_be    ),
+    .periph_data_i   (softex_periph_data  ),
+    .periph_id_i     (softex_periph_id    ),
     
-    .periph_r_data_o (softex_periph_r_data),
-    .periph_r_valid_o(softex_periph_r_valid),
-    .periph_r_id_o   (softex_periph_r_id)               
+    .periph_r_data_o (softex_periph_r_data  ),
+    .periph_r_valid_o(softex_periph_r_valid ),
+    .periph_r_id_o   (softex_periph_r_id    )               
   );
 
 
-
-
-
-  // TCDM STUFF
-  // collect the MP-wide request signals into your tcdm_req_t array
+  // TCDM
   for (genvar i = 0; i < SOFTEX_MP; i++) begin
 
     // Response channel
     // Register to delay q_ready by one cycle
+    // This is requirement for HCI
     logic q_ready_d;
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
@@ -1006,7 +984,6 @@ module ${cfg['name']}
         end
     end
 
-
     always_comb begin
         // Request channel
         tcdm_req[SoftExTcdmPortsOffs + i].q.addr           = softex_addr_o[i];
@@ -1014,13 +991,13 @@ module ${cfg['name']}
         tcdm_req[SoftExTcdmPortsOffs + i].q.strb           = softex_be_o[i];
         tcdm_req[SoftExTcdmPortsOffs + i].q.data           = softex_wdata_o[i];
         tcdm_req[SoftExTcdmPortsOffs + i].q.amo            = reqrsp_pkg::AMONone;
-        tcdm_req[SoftExTcdmPortsOffs + i].q.user.core_id   = 1'b0;//MARIUS: ?? softex_id_o[i];
+        tcdm_req[SoftExTcdmPortsOffs + i].q.user.core_id   = 1'b0;
         tcdm_req[SoftExTcdmPortsOffs + i].q.user.is_core   = 1'b0;
         tcdm_req[SoftExTcdmPortsOffs + i].q.user.req_id    = 1'b0;
         tcdm_req[SoftExTcdmPortsOffs + i].q_valid          = softex_req_o[i];
 
 
-        softex_gnt_i[i]    = q_ready_d; // Use delayed signal
+        softex_gnt_i[i]    = q_ready_d; // Delayed signal
         softex_rvalid_i[i] = tcdm_rsp[SoftExTcdmPortsOffs + i].p_valid;
         softex_rdata_i[i]  = tcdm_rsp[SoftExTcdmPortsOffs + i].p.data;
     end
