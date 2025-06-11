@@ -102,7 +102,7 @@ module ${cfg['name']}
     // value here. This only applies to the TCDM. The instruction cache macros will break!
     // In case you are using the `RegisterTCDMCuts` feature this adds an
     // additional cycle latency, which is taken into account here.
-    parameter int                     unsigned               MemoryMacroLatency                 = 1 + RegisterTCDMCuts
+    parameter int                     unsigned               MemoryMacroLatency                 = 1 + RegisterTCDMCuts//MARIUS MEM RESP + RegisterTCDMCuts
   ) (
     /// System clock.
     input  logic                             clk_i,
@@ -171,7 +171,7 @@ module ${cfg['name']}
   // Parameters
   localparam int unsigned  SOFTEX_NC = 2;
   localparam int unsigned  SOFTEX_ID = 8;
-  localparam int unsigned  SOFTEX_DW = 256 + 64; // +64 is crucial for stream alignment
+  localparam int unsigned  SOFTEX_DW = 256;//MARIUS nonaligned + 64; // +64 is crucial for stream alignment
   localparam int unsigned  SOFTEX_MP = SOFTEX_DW/64;
 
   // Now the number for the cores + the softex cores
@@ -716,12 +716,14 @@ module ${cfg['name']}
       // Insert a pipeline register at the output of each SRAM.
       shift_reg #(
         .dtype(data_t                ),
-        .Depth(int'(RegisterTCDMCuts))
+        .Depth(int'(RegisterTCDMCuts)) //MARIUS: WHY IS THAT ONE ALSO???
+        //MARIUS MEM RESP
+         //.Depth(0)
       ) i_sram_pipe (
         .clk_i (clk_i            ),
         .rst_ni(rst_ni           ),
         .d_i   (amo_rdata_local  ),
-        .d_o   (amo_rsp[j].p.data)
+        .d_o   (amo_rsp[j].p.data) // MARIUS: here mem latency!!
       );
     end
   end
@@ -736,7 +738,7 @@ module ${cfg['name']}
     .MemAddrWidth          (TCDMMemAddrWidth    ),
     .DataWidth             (DataWidth           ),
     .user_t                (tcdm_user_t         ),
-    .MemoryResponseLatency (1 + RegisterTCDMCuts)
+    .MemoryResponseLatency (1 + RegisterTCDMCuts) // MARIUS: here mem latency!!
   ) i_tcdm_interconnect (
     .clk_i     (clk_i                  ),
     .rst_ni    (rst_ni                 ),
@@ -975,14 +977,14 @@ module ${cfg['name']}
     // Response channel
     // Register to delay q_ready by one cycle
     // This is requirement for HCI
-    logic q_ready_d;
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            q_ready_d <= 1'b0;
-        end else begin
-            q_ready_d <= tcdm_rsp[SoftExTcdmPortsOffs + i].q_ready;
-        end
-    end
+    // logic q_ready_d;
+    // always_ff @(posedge clk_i or negedge rst_ni) begin
+    //     if (!rst_ni) begin
+    //         q_ready_d <= 1'b0;
+    //     end else begin
+    //         q_ready_d <= tcdm_rsp[SoftExTcdmPortsOffs + i].q_ready;
+    //     end
+    // end
 
     always_comb begin
         // Request channel
@@ -997,7 +999,7 @@ module ${cfg['name']}
         tcdm_req[SoftExTcdmPortsOffs + i].q_valid          = softex_req_o[i];
 
 
-        softex_gnt_i[i]    = q_ready_d; // Delayed signal
+        softex_gnt_i[i]    = tcdm_rsp[SoftExTcdmPortsOffs + i].q_ready; // Delayed signal q_ready_d;//
         softex_rvalid_i[i] = tcdm_rsp[SoftExTcdmPortsOffs + i].p_valid;
         softex_rdata_i[i]  = tcdm_rsp[SoftExTcdmPortsOffs + i].p.data;
     end
