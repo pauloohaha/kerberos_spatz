@@ -170,7 +170,7 @@ module ${cfg['name']}
   
   // Parameters
   localparam int unsigned  SOFTEX_NC = 2;
-  localparam int unsigned  SOFTEX_ID = 8;
+  localparam int unsigned  SOFTEX_ID = 2;//MARIUS before: 8;
   localparam int unsigned  SOFTEX_DW = 256;//MARIUS nonaligned + 64; // +64 is crucial for stream alignment
   localparam int unsigned  SOFTEX_MP = SOFTEX_DW/64;
 
@@ -974,18 +974,6 @@ module ${cfg['name']}
   // TCDM
   for (genvar i = 0; i < SOFTEX_MP; i++) begin
 
-    // Response channel
-    // Register to delay q_ready by one cycle
-    // This is requirement for HCI
-    // logic q_ready_d;
-    // always_ff @(posedge clk_i or negedge rst_ni) begin
-    //     if (!rst_ni) begin
-    //         q_ready_d <= 1'b0;
-    //     end else begin
-    //         q_ready_d <= tcdm_rsp[SoftExTcdmPortsOffs + i].q_ready;
-    //     end
-    // end
-
     always_comb begin
         // Request channel
         tcdm_req[SoftExTcdmPortsOffs + i].q.addr           = softex_addr_o[i];
@@ -999,7 +987,7 @@ module ${cfg['name']}
         tcdm_req[SoftExTcdmPortsOffs + i].q_valid          = softex_req_o[i];
 
 
-        softex_gnt_i[i]    = tcdm_rsp[SoftExTcdmPortsOffs + i].q_ready; // Delayed signal q_ready_d;//
+        softex_gnt_i[i]    = tcdm_rsp[SoftExTcdmPortsOffs + i].q_ready;
         softex_rvalid_i[i] = tcdm_rsp[SoftExTcdmPortsOffs + i].p_valid;
         softex_rdata_i[i]  = tcdm_rsp[SoftExTcdmPortsOffs + i].p.data;
     end
