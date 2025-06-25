@@ -170,9 +170,10 @@ module ${cfg['name']}
   
   // Parameters
   localparam int unsigned  SOFTEX_NC = 2;
-  localparam int unsigned  SOFTEX_ID = 2;//MARIUS before: 8;
-  localparam int unsigned  SOFTEX_DW = 256;//MARIUS nonaligned + 64; // +64 is crucial for stream alignment
+  localparam int unsigned  SOFTEX_ID = 2;
+  localparam int unsigned  SOFTEX_DW = 256;
   localparam int unsigned  SOFTEX_MP = SOFTEX_DW/64;
+  localparam int unsigned  SoftexPeripheralDataWidth = 32;
 
   // Now the number for the cores + the softex cores
   localparam int   unsigned                    NrTCDMPortsCores = get_tcdm_port_offs(NrCores) + SOFTEX_MP;
@@ -206,7 +207,9 @@ module ${cfg['name']}
   // --------
   typedef logic [AxiAddrWidth-1:0] addr_t;
   typedef logic [NarrowDataWidth-1:0] data_t;
+  typedef logic [SoftexPeripheralDataWidth-1:0] data_softex_t;
   typedef logic [NarrowDataWidth/8-1:0] strb_t;
+  typedef logic [SoftexPeripheralDataWidth/8-1:0] strb_softex_t;
   typedef logic [AxiDataWidth-1:0] data_dma_t;
   typedef logic [AxiDataWidth/8-1:0] strb_dma_t;
   typedef logic [NarrowIdWidthIn-1:0] id_mst_t;
@@ -230,6 +233,8 @@ module ${cfg['name']}
   `AXI_TYPEDEF_ALL(axi_slv, addr_t, id_slv_t, data_t, strb_t, user_t)
   `AXI_TYPEDEF_ALL(axi_mst_dma, addr_t, id_dma_mst_t, data_dma_t, strb_dma_t, user_dma_t)
   `AXI_TYPEDEF_ALL(axi_slv_dma, addr_t, id_dma_slv_t, data_dma_t, strb_dma_t, user_dma_t)
+
+  `AXI_TYPEDEF_ALL(axi_slv_softex, addr_t, id_slv_t, data_softex_t, strb_softex_t, user_t)
 
   `REQRSP_TYPEDEF_ALL(reqrsp, addr_t, data_t, strb_t)
 
@@ -860,10 +865,11 @@ module ${cfg['name']}
       assign axi_dma_res = '0;
     end
   end
-   
-  // ----------------
+
+
+  // -----------------
   // SoftEx accelerator
-  // ----------------
+  // -----------------
 
   localparam int unsigned SoftExTcdmPortsOffs = get_tcdm_port_offs(NrCores); 
   localparam int unsigned SoftExTcdmPorts = SOFTEX_MP; 
@@ -874,58 +880,88 @@ module ${cfg['name']}
   logic [SoftExTcdmPorts-1:0] softex_wen_o;
   logic [SoftExTcdmPorts-1:0][7:0] softex_be_o;
   logic [SoftExTcdmPorts-1:0][63:0] softex_wdata_o;
-  logic [SoftExTcdmPorts-1:0][7:0] softex_id_o;
 
   // TCDM RESPONSE 
   logic [SoftExTcdmPorts-1:0] softex_gnt_i;
   logic [SoftExTcdmPorts-1:0] softex_rvalid_i;
   logic [SoftExTcdmPorts-1:0][63:0] softex_rdata_i;
-
-  typedef logic [32-1:0] softex_data_t;
-  typedef logic [32/8-1:0] softex_strb_t;
   
-  //peripheral interface
+  // Peripheral interface
   logic                      softex_periph_req        ;
   logic                      softex_periph_gnt        ;
-  logic [        31:0]       softex_periph_add        ;
+  logic [         31:0]       softex_periph_add       ;
   logic                      softex_periph_wen        ;
-  logic [         3:0]       softex_periph_be         ;
-  logic [        31:0]       softex_periph_data       ;
+  logic [          3:0]       softex_periph_be        ;
+  logic [         31:0]       softex_periph_data      ;
   logic [SOFTEX_ID-1:0]      softex_periph_id         ;
-  logic [        31:0]       softex_periph_r_data     ;
+  logic [         31:0]       softex_periph_r_data    ;
   logic                      softex_periph_r_valid    ;
   logic [SOFTEX_ID-1:0]      softex_periph_r_id       ;
 
-    // 3. SoftEx
+  axi_slv_softex_req_t    softex_axi_req;
+  axi_slv_softex_resp_t   softex_axi_rsp;
+
+
+  // Downsize 64bit AXI request to 32bit for SoftEx peripheral
+  axi_dw_downsizer #(
+      .AxiMaxReads         (1),
+      .AxiSlvPortDataWidth (NarrowDataWidth            ), // Data width of the slv port
+      .AxiMstPortDataWidth (SoftexPeripheralDataWidth  ), // Data width of the mst port
+      .AxiAddrWidth        (AxiAddrWidth               ),
+      .AxiIdWidth          (NarrowIdWidthIn            ),
+      .aw_chan_t           (axi_slv_aw_chan_t          ),
+      .mst_w_chan_t        (axi_slv_softex_w_chan_t    ),
+      .slv_w_chan_t        (axi_slv_w_chan_t           ),
+      .b_chan_t            (axi_slv_b_chan_t           ),
+      .ar_chan_t           (axi_slv_ar_chan_t          ),
+      .mst_r_chan_t        (axi_slv_softex_r_chan_t    ),
+      .slv_r_chan_t        (axi_slv_r_chan_t           ),
+      .axi_mst_req_t       (axi_slv_softex_req_t       ),
+      .axi_mst_resp_t      (axi_slv_softex_resp_t      ),
+      .axi_slv_req_t       (axi_slv_req_t              ),
+      .axi_slv_resp_t      (axi_slv_resp_t             )
+  ) i_axi_downsizer(
+      .clk_i              (clk_i                       ),
+      .rst_ni             (rst_ni                      ),
+      // Slave interface
+      .slv_req_i (narrow_axi_slv_req[SoftEx]),
+      .slv_resp_o (narrow_axi_slv_rsp[SoftEx]),
+      // Master interface
+      .mst_req_o (softex_axi_req),
+      .mst_resp_i (softex_axi_rsp)
+    );
+
+  // Convert AXI request to SoftEx Peripheral request
   axi_to_softex #(
     .AxiAddrWidth (AxiAddrWidth),
-    .AxiDataWidth (NarrowDataWidth),
+    .AxiDataWidth (SoftexPeripheralDataWidth),
     .AxiIdWidth   (NarrowIdWidthIn),
     .AxiUserWidth (NarrowUserWidth),
     .RegDataWidth (32'd32         ),
     .CutMemReqs   (1'b0           ),
     .CutMemRsps   (1'b0           ),
     .SOFTEX_ID    (SOFTEX_ID      ),
-    .axi_req_t    (axi_slv_req_t  ),
-    .axi_rsp_t    (axi_slv_resp_t )
+    .axi_req_t    (axi_slv_softex_req_t  ),
+    .axi_rsp_t    (axi_slv_softex_resp_t )
     ) i_axi_to_softex (
-    .clk_i              (clk_i                              ),
-    .rst_ni             (rst_ni                             ),
-    .axi_req_i          (narrow_axi_slv_req[SoftEx]         ),
-    .axi_rsp_o          (narrow_axi_slv_rsp[SoftEx]         ),
-    .periph_req_o       (softex_periph_req                  ),
-    .periph_gnt_i       (softex_periph_gnt                  ),
-    .periph_add_o       (softex_periph_add                  ),
-    .periph_wen_o       (softex_periph_wen                  ),
-    .periph_be_o        (softex_periph_be                   ),
-    .periph_data_o      (softex_periph_data                 ),
-    .periph_id_o        (softex_periph_id                   ),
-    .periph_r_data_i    (softex_periph_r_data               ),
-    .periph_r_valid_i   (softex_periph_r_valid              ),
-    .periph_r_id_i      (softex_periph_r_id                 ),
-    .busy_o             ( /* unused */                      )
+    .clk_i              (clk_i                     ),
+    .rst_ni             (rst_ni                    ),
+    .axi_req_i          (softex_axi_req            ),
+    .axi_rsp_o          (softex_axi_rsp            ),
+    .periph_req_o       (softex_periph_req         ),
+    .periph_gnt_i       (softex_periph_gnt         ),
+    .periph_add_o       (softex_periph_add         ),
+    .periph_wen_o       (softex_periph_wen         ),
+    .periph_be_o        (softex_periph_be          ),
+    .periph_data_o      (softex_periph_data        ),
+    .periph_id_o        (softex_periph_id          ),
+    .periph_r_data_i    (softex_periph_r_data      ),
+    .periph_r_valid_i   (softex_periph_r_valid     ),
+    .periph_r_id_i      (softex_periph_r_id        ),
+    .busy_o             ( /* unused */             )
   );
 
+  // SoftEx
   softex_wrap #(
     .ID_WIDTH           ( SOFTEX_ID ),
     .N_CORES            ( SOFTEX_NC ),
@@ -937,8 +973,8 @@ module ${cfg['name']}
     .test_mode_i    ('0            ),
 
     // Status outputs
-    .evt_o          (), // Not really used
-    .busy_o         (), // Not really used
+    .evt_o          ( /* unused */ ), 
+    .busy_o         ( /* unused */ ), 
 
     // TCDM master ports
     .tcdm_req_o     (softex_req_o    ),
@@ -946,8 +982,8 @@ module ${cfg['name']}
     .tcdm_wen_o     (softex_wen_o    ),
     .tcdm_be_o      (softex_be_o     ),
     .tcdm_data_o    (softex_wdata_o  ),
-    .tcdm_r_ready_o (),
-    .tcdm_id_o      (softex_id_o     ),
+    .tcdm_r_ready_o ( /* unused */   ),
+    .tcdm_id_o      ( /* unused */   ),
 
     .tcdm_gnt_i     (softex_gnt_i    ),
     .tcdm_r_data_i  (softex_rdata_i  ),
@@ -971,11 +1007,11 @@ module ${cfg['name']}
   );
 
 
-  // TCDM
+  // TCDM Connection
   for (genvar i = 0; i < SOFTEX_MP; i++) begin
 
     always_comb begin
-        // Request channel
+        // Request
         tcdm_req[SoftExTcdmPortsOffs + i].q.addr           = softex_addr_o[i];
         tcdm_req[SoftExTcdmPortsOffs + i].q.write          = ~softex_wen_o[i];
         tcdm_req[SoftExTcdmPortsOffs + i].q.strb           = softex_be_o[i];
@@ -986,13 +1022,12 @@ module ${cfg['name']}
         tcdm_req[SoftExTcdmPortsOffs + i].q.user.req_id    = 1'b0;
         tcdm_req[SoftExTcdmPortsOffs + i].q_valid          = softex_req_o[i];
 
-
+        // Response
         softex_gnt_i[i]    = tcdm_rsp[SoftExTcdmPortsOffs + i].q_ready;
         softex_rvalid_i[i] = tcdm_rsp[SoftExTcdmPortsOffs + i].p_valid;
         softex_rdata_i[i]  = tcdm_rsp[SoftExTcdmPortsOffs + i].p.data;
     end
 end
-
 
 
   // ----------------
