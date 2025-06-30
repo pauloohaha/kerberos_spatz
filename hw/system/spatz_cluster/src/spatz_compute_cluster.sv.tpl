@@ -908,7 +908,7 @@ module ${cfg['name']}
       .AxiSlvPortDataWidth (NarrowDataWidth            ), // Data width of the slv port
       .AxiMstPortDataWidth (SoftexPeripheralDataWidth  ), // Data width of the mst port
       .AxiAddrWidth        (AxiAddrWidth               ),
-      .AxiIdWidth          (NarrowIdWidthIn            ),
+      .AxiIdWidth          (NarrowIdWidthOut            ),
       .aw_chan_t           (axi_slv_aw_chan_t          ),
       .mst_w_chan_t        (axi_slv_softex_w_chan_t    ),
       .slv_w_chan_t        (axi_slv_w_chan_t           ),
@@ -935,7 +935,7 @@ module ${cfg['name']}
   axi_to_softex #(
     .AxiAddrWidth (AxiAddrWidth),
     .AxiDataWidth (SoftexPeripheralDataWidth),
-    .AxiIdWidth   (NarrowIdWidthIn),
+    .AxiIdWidth   (NarrowIdWidthOut),
     .AxiUserWidth (NarrowUserWidth),
     .RegDataWidth (32'd32         ),
     .CutMemReqs   (1'b0           ),
@@ -1005,6 +1005,9 @@ module ${cfg['name']}
     .periph_r_valid_o(softex_periph_r_valid ),
     .periph_r_id_o   (softex_periph_r_id    )               
   );
+
+  // Note/ToDo:
+  // Softex ID and AXI ID with may not be configured properly.
 
 
   // TCDM Connection
