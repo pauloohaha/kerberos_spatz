@@ -102,7 +102,7 @@ module ${cfg['name']}
     // value here. This only applies to the TCDM. The instruction cache macros will break!
     // In case you are using the `RegisterTCDMCuts` feature this adds an
     // additional cycle latency, which is taken into account here.
-    parameter int                     unsigned               MemoryMacroLatency                 = 1 + RegisterTCDMCuts//MARIUS MEM RESP + RegisterTCDMCuts
+    parameter int                     unsigned               MemoryMacroLatency                 = 1 + RegisterTCDMCuts //MARIUS MEM RESP + RegisterTCDMCuts
   ) (
     /// System clock.
     input  logic                             clk_i,
@@ -721,14 +721,12 @@ module ${cfg['name']}
       // Insert a pipeline register at the output of each SRAM.
       shift_reg #(
         .dtype(data_t                ),
-        .Depth(int'(RegisterTCDMCuts)) //MARIUS: WHY IS THAT ONE ALSO???
-        //MARIUS MEM RESP
-         //.Depth(0)
+        .Depth(int'(RegisterTCDMCuts))
       ) i_sram_pipe (
         .clk_i (clk_i            ),
         .rst_ni(rst_ni           ),
         .d_i   (amo_rdata_local  ),
-        .d_o   (amo_rsp[j].p.data) // MARIUS: here mem latency!!
+        .d_o   (amo_rsp[j].p.data)
       );
     end
   end
@@ -743,7 +741,7 @@ module ${cfg['name']}
     .MemAddrWidth          (TCDMMemAddrWidth    ),
     .DataWidth             (DataWidth           ),
     .user_t                (tcdm_user_t         ),
-    .MemoryResponseLatency (1 + RegisterTCDMCuts) // MARIUS: here mem latency!!
+    .MemoryResponseLatency (1 + RegisterTCDMCuts)
   ) i_tcdm_interconnect (
     .clk_i     (clk_i                  ),
     .rst_ni    (rst_ni                 ),
